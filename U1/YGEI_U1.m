@@ -6,7 +6,7 @@ clc; clear; close all; format longg;
 
 %% Insert variables for compression
 % Load raster
-%ras1 = imread('gray.png');
+
 ras1 = imread('snow_leopard.tif');
 
 % Compression factor
@@ -45,11 +45,9 @@ disp('Type of transformation wasn''t inserted, ''dct'' will be used')
     Transform_Type = 'dct';
     ITransform_Type = 'idct';
 end
-%%
-% figure
-% subplot(1,2,1)
-% imshow(ras1)
 
+
+%% 
 % divide RGB channels
 R = double(ras1(:,:,1));
 G = double(ras1(:,:,2));
