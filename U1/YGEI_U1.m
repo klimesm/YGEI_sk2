@@ -96,8 +96,8 @@ CBd = decompression(CBc,Qc,ITransform_Type);
 CRd = decompression(CRc,Qc,ITransform_Type);
 
 % upsampling
-CBd = resample_image(CBd,'up',Int_down);
-CRd = resample_image(CRd,'up',Int_down);
+CBd = resample_image(CBd,'up',Int_up);
+CRd = resample_image(CRd,'up',Int_up);
 
 % YCBCR to RGB
 Rd = Yd + 1.4020*(CRd-128);
