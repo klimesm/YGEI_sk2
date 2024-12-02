@@ -1,222 +1,204 @@
-# Imports
-from math import inf
-from queue import PriorityQueue
+import pickle
+import heapq
 
-# Functions definition
+# Načtení grafu - před spuštěním shapefile_to_graph
+with open("graph.pkl", "rb") as f:
+    graph = pickle.load(f)
 
-# Reconstruct the path from predecessors
-def rec_path(u, v, P):
-    path = []
-    while v != u and v != -1:
-        path.append(v)
-        v = P[v]
-    path.append(v)
-    path.reverse()
-    return path
+print(f"Počet vrcholů: {graph.number_of_nodes()}")
+print(f"Počet hran: {graph.number_of_edges()}")
 
-# Dijkstra's algorithm
-def dijkstra(G, start, end):
-    n = len(G)
-    P = [-1] * (n + 1)
-    D = [inf] * (n + 1)
-    PQ = PriorityQueue()
-    PQ.put((0, start))
-    D[start] = 0
 
-    while not PQ.empty():
-        du, u = PQ.get()
-        if u == end:
-            break
-        for v, wuv in G[u].items():
-            if D[v] > D[u] + wuv:
-                D[v] = D[u] + wuv
-                P[v] = u
-                PQ.put((D[v], v))
+class UnionFind:
+    def __init__(self, nodes):
+        self.parent = {node: node for node in nodes}
+        self.rank = {node: 0 for node in nodes}
 
-    return P, D[end]
+    def find(self, node):
+        if self.parent[node] != node:
+            self.parent[node] = self.find(self.parent[node])
+        return self.parent[node]
 
-# Bellman-Ford algorithm for negative weights - if the loop sum is negative, there is no least-cost path (stacking)
-def bellman_ford(G, start, end):
-    n = len(G)
-    D = [inf] * (n + 1)
-    P = [-1] * (n + 1)
-    D[start] = 0
-
-    for _ in range(n - 1):
-        for u in G:
-            for v, w in G[u].items():
-                if D[u] != inf and D[u] + w < D[v]:
-                    D[v] = D[u] + w
-                    P[v] = u
-
-    for u in G:
-        for v, w in G[u].items():
-            if D[u] != inf and D[u] + w < D[v]:
-                raise ValueError("Graph contains a negative-weight cycle")
-
-    return P, D[end]
-
-# Find shortest path using either Dijkstra or Bellman-Ford
-def find_shortest_path(G, start, end):
-    has_negative_weight = any(w < 0 for edges in G.values() for w in edges.values())
-
-    if has_negative_weight:
-        print("Negative weights detected. Using Bellman-Ford algorithm.")
-        try:
-            P, distance = bellman_ford(G, start, end)
-        except ValueError as e:
-            print(e)
-            return None, None
-    else:
-        print("No negative weights detected. Using Dijkstra's algorithm.")
-        P, distance = dijkstra(G, start, end)
-
-    return P, distance
-
-# All pairs shortest paths using find_shortest_path
-def all_pairs_shortest_paths(G):
-    nodes = list(G.keys())
-    shortest_paths = {u: {v: None for v in nodes} for u in nodes}
-    distances = {u: {v: float('inf') for v in nodes} for u in nodes}
-
-    for u in nodes:
-        for v in nodes:
-            if u == v:
-                shortest_paths[u][v] = [u]
-                distances[u][v] = 0
+    def union(self, u, v):
+        root_u = self.find(u)
+        root_v = self.find(v)
+        if root_u != root_v:
+            if self.rank[root_u] > self.rank[root_v]:
+                self.parent[root_v] = root_u
+            elif self.rank[root_u] < self.rank[root_v]:
+                self.parent[root_u] = root_v
             else:
-                P, dist = find_shortest_path(G, u, v)
-                if P and dist is not None:
-                    shortest_paths[u][v] = rec_path(u, v, P)
-                    distances[u][v] = dist
+                self.parent[root_v] = root_u
+                self.rank[root_u] += 1
 
-    return shortest_paths, distances
 
-# Find operation for Kruskal
-def find(u, P):
-    if P[u] != u:
-        P[u] = find(P[u], P)
-    return P[u]
+# Kruskal algorithm
+def kruskal(graph):
+    edges = []
+    for u in graph:
+        for v, weight in graph[u]:
+            edges.append((weight, u, v))
+    edges.sort()
 
-# Union operation for Kruskal
-def union(u, v, P, rank):
-    root_u = find(u, P)
-    root_v = find(v, P)
-    if root_u != root_v:
-        if rank[root_u] > rank[root_v]:
-            P[root_v] = root_u
-        elif rank[root_u] < rank[root_v]:
-            P[root_u] = root_v
-        else:
-            P[root_v] = root_u
-            rank[root_u] += 1
+    uf = UnionFind(graph.keys())
+    mst = []
 
-# Kruskal's algorithm for MSF
-def kruskal(V, E):
-    P = {v: v for v in V}
-    rank = {v: 0 for v in V}
-    E_sorted = sorted(E, key=lambda edge: edge[2])
-    MST = []
-    total_weight = 0
+    for weight, u, v in edges:
+        if uf.find(u) != uf.find(v):
+            uf.union(u, v)
+            mst.append((u, v, weight))
 
-    for u, v, w in E_sorted:
-        if find(u, P) != find(v, P):
-            union(u, v, P, rank)
-            MST.append((u, v, w))
-            total_weight += w
+    return mst
 
-    return MST, total_weight
 
-# Prim's algorithm for MSF
-def prim_msf(G):
-    nodes = list(G.keys())
+# Převede graf na adjacency list, kvůli využití vlastních algoritmů místo nx knihovny
+def graph_to_adj_list(graph):
+    adj_list = {}
+    for u, v, data in graph.edges(data=True):
+        weight = data.get('weight', 1)
+        if u not in adj_list:
+            adj_list[u] = []
+        if v not in adj_list:
+            adj_list[v] = []
+        adj_list[u].append((v, weight))
+        adj_list[v].append((u, weight))
+    return adj_list
+
+
+# Dijkstra algorithm
+def dijkstra(graph, start, end):
+    dist = {node: float('inf') for node in graph}
+    dist[start] = 0
+    prev = {node: None for node in graph}
+    pq = [(0, start)]
+
+    while pq:
+        current_dist, current_node = heapq.heappop(pq)
+        if current_node == end:
+            break
+        if current_dist > dist[current_node]:
+            continue
+        for neighbor, weight in graph[current_node]:
+            distance = current_dist + weight
+            if distance < dist[neighbor]:
+                dist[neighbor] = distance
+                prev[neighbor] = current_node
+                heapq.heappush(pq, (distance, neighbor))
+
+    path = []
+    current = end
+    while current is not None:
+        path.insert(0, current)
+        current = prev[current]
+
+    return path, dist[end]
+
+
+# BF algorithm
+def bellman_ford(graph, start, end):
+    dist = {node: float('inf') for node in graph}
+    dist[start] = 0
+    prev = {node: None for node in graph}
+
+    for _ in range(len(graph) - 1):
+        for u in graph:
+            for v, weight in graph[u]:
+                if dist[u] + weight < dist[v]:
+                    dist[v] = dist[u] + weight
+                    prev[v] = u
+
+    for u in graph:
+        for v, weight in graph[u]:
+            if dist[u] + weight < dist[v]:
+                raise ValueError("Graph contains a negative weight cycle.")
+
+    path = []
+    current = end
+    while current is not None:
+        path.insert(0, current)
+        current = prev[current]
+
+    return path, dist[end]
+
+
+# Floyd-Warshall algorithm
+def floyd_warshall(graph):
+    nodes = list(graph.keys())
+    dist = {u: {v: float('inf') for v in nodes} for u in nodes}
+    for u in nodes:
+        dist[u][u] = 0
+    for u in graph:
+        for v, weight in graph[u]:
+            dist[u][v] = weight
+    for k in nodes:
+        for i in nodes:
+            for j in nodes:
+                dist[i][j] = min(dist[i][j], dist[i][k] + dist[k][j])
+    return dist
+
+
+# Prim
+def prim(graph):
+    start_node = next(iter(graph))
     visited = set()
-    msf = []
-    total_weight = 0
+    mst = []
+    pq = [(0, start_node, None)]
 
-    def prim(start):
-        nonlocal total_weight
-        pq = PriorityQueue()
-        visited.add(start)
-        for neighbor, weight in G[start].items():
-            pq.put((weight, start, neighbor))
-        mst_edges = []
-        while not pq.empty():
-            weight, u, v = pq.get()
-            if v not in visited:
-                visited.add(v)
-                mst_edges.append((u, v, weight))
-                total_weight += weight
-                for neighbor, edge_weight in G[v].items():
-                    if neighbor not in visited:
-                        pq.put((edge_weight, v, neighbor))
-        return mst_edges
+    while pq:
+        weight, current, previous = heapq.heappop(pq)
+        if current in visited:
+            continue
+        visited.add(current)
+        if previous is not None:
+            mst.append((previous, current, weight))
+        for neighbor, edge_weight in graph[current]:
+            if neighbor not in visited:
+                heapq.heappush(pq, (edge_weight, neighbor, current))
 
-    for node in nodes:
-        if node not in visited:
-            mst_edges = prim(node)
-            msf.extend(mst_edges)
-
-    return msf, total_weight
+    return mst
 
 
-# Define Graph, Vertices, and Edges
-G = {
-    1: {2: 8, 3: 4, 5: 2},
-    2: {1: 8, 3: 5, 4: 2, 7: 6, 8: 7},  # Negative weight (-2) from 2 to 4
-    3: {1: 4, 2: 5, 6: 3, 7: 4},
-    4: {2: 2, 9: 3},  # Negative weight (-2) from 4 to 2
-    5: {1: 2, 6: 5},
-    6: {3: 3, 5: 5, 7: 5, 8: 7, 9: 10},
-    7: {2: 6, 3: 4, 6: 5, 8: 3},
-    8: {2: 7, 6: 7, 7: 3, 9: 1},
-    9: {4: 3, 6: 10, 8: 1}  # No negative cycle
-}
+# Kontroluje, zda použít Dijkstru, nebo BF
+def has_negative_weights(graph):
+    for edges in graph.values():
+        for _, weight in edges:
+            if weight < 0:
+                return True
+    return False
 
 
-V = [1, 2, 3, 4, 5, 6, 7, 8, 9]
+if __name__ == '__main__':
+    # Pipeline
+    adj_list = graph_to_adj_list(graph)
 
-E = [
-    (1, 2, 8),
-    (1, 3, 4),
-    (1, 5, 2),
-    (2, 3, 5),
-    (2, 4, 2),
-    (2, 7, 6),
-    (2, 8, 7),
-    (3, 6, 3),
-    (3, 7, 4),
-    (4, 9, 3),
-    (5, 6, 5),
-    (6, 7, 5),
-    (6, 8, 7),
-    (6, 9, 10),
-    (7, 8, 3),
-    (8, 9, 1)
-]
+    # Úloha 1+2: Najít nejkratší cestu
+    print("\nÚloha 1+2 - Hledání nejkratší cesty")
+    start_node, end_node = 0, 10  # Replace with valid nodes
+    if has_negative_weights(adj_list):
+        print("Použit Bellman-Ford (záporné váhy detekovány)")
+        path, length = bellman_ford(adj_list, start_node, end_node)
+    else:
+        print("Použit Dijkstra")
+        path, length = dijkstra(adj_list, start_node, end_node)
+    print(f"Nejkratší cesta mezi uzly {start_node} a {end_node}: {path} s délkou {length}")
 
-# Example: Find shortest path
-start, end = 1, 9
-P, distance = find_shortest_path(G, start, end)
-if P and distance is not None:
-    path = rec_path(start, end, P)
-    print("\nFind shortest path")
-    print("Path:", path)
-    print("Distance:", distance)
+    # Úloha 3: Krátké cesty mezi všemi dvojicemi
+    print("\nÚloha 3 - Krátké cesty mezi všemi dvojicemi uzlů")
+    all_pairs_shortest_paths = floyd_warshall(adj_list)
+    print("Výpis částí výsledku Floyd-Warshall:")
+    for start, targets in list(all_pairs_shortest_paths.items())[:5]:
+        print(f"Cesty z uzlu {start}: {dict(list(targets.items())[:5])}")
 
-# Example: All pairs shortest paths
-shortest_paths, distances = all_pairs_shortest_paths(G)
-print("\nAll pairs shortest paths")
-print("Shortest distances:", distances)
+    # Úloha 4: Minimální kostra (Prim)
+    print("\nÚloha 4 - Minimální kostra (Prim)")
+    mst_prim = prim(adj_list)
+    print("Prim: Minimální kostra grafu:")
+    for edge in mst_prim:
+        print(edge)
 
-# Example: Kruskal's algorithm
-MST, total_weight = kruskal(V, E)
-print("\nMinimum Spanning Tree using Kruskal's algorithm")
-print("Edges:", MST)
-print("Total weight:", total_weight)
-
-# Example: Prim's algorithm for MSF
-msf, total_weight = prim_msf(G)
-print("\nMinimum Spanning Forest using Prim's algorithm")
-print("Edges:", msf)
-print("Total weight:", total_weight)
+    # Úloha 5: Minimální kostra (Kruskal)
+    print("\nÚloha 5 - Minimální kostra (Kruskal)")
+    mst_kruskal = kruskal(adj_list)
+    print("Kruskal: Minimální kostra grafu:")
+    for edge in mst_kruskal:
+        print(edge)
