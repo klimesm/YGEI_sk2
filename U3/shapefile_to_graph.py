@@ -84,79 +84,109 @@ def split_line_or_assign_vertex(line, point, vertices, settlements_info):
     raise TypeError(f"Neočekávaný typ geometrie: {type(line)}")
 
 
+# Křivost
+def calculate_crookedness(line):
+    length = line.length
+    start_point = Point(line.coords[0])
+    end_point = Point(line.coords[-1])
+    euclidean_distance = ((start_point.x - end_point.x) ** 2 + (start_point.y - end_point.y) ** 2) ** 0.5
+    return length / euclidean_distance if euclidean_distance > 0 else 1  # Avoid division by zero
+
+
 # Zpracování grafu
 graph = nx.Graph()
 settlements_info = {}
+# Add vertices to the graph with names for "sídlo" vertices
+point_to_vertex = {}
+vertex_to_name = {}  # Map vertices to their names (if applicable)
 
 for _, settlement in settlements.iterrows():
     settlement_point = settlement.geometry
     nearest_point, nearest_line = find_nearest_point_on_line(settlement_point, roads.geometry)
 
-    if nearest_line and nearest_point:
-        line1, line2, assigned_vertex = split_line_or_assign_vertex(
-            nearest_line, nearest_point, graph.nodes, settlements_info
-        )
-        if line1 and line2:
-            new_road1 = gpd.GeoDataFrame({'geometry': [line1]}, crs=roads.crs)
-            new_road2 = gpd.GeoDataFrame({'geometry': [line2]}, crs=roads.crs)
-            roads = pd.concat([roads, new_road1, new_road2], ignore_index=True)
-            roads = roads[~(roads.geometry == nearest_line)]
+    # Add the settlement point to the graph with its name
+    if nearest_point:
+        name = settlement["NAZEV"]
+        point = (nearest_point.x, nearest_point.y)
+        if point not in point_to_vertex:
+            vertex_id = len(point_to_vertex)
+            point_to_vertex[point] = vertex_id
+            vertex_to_name[vertex_id] = name
+            graph.add_node(vertex_id, pos=(nearest_point.x, nearest_point.y), is_settlement=True, name=name)
 
-# Sloučit krajní body do jednoho vrcholu (když se tam setkává více linií)
-unique_points = set()
-
+# Process unique points for roads
 for line in roads.geometry:
     if isinstance(line, MultiLineString):
         for sub_line in line.geoms:
-            unique_points.add(Point(sub_line.coords[0]))
-            unique_points.add(Point(sub_line.coords[-1]))
+            start_point = Point(sub_line.coords[0])
+            end_point = Point(sub_line.coords[-1])
+            for point in [start_point, end_point]:
+                point_coords = (point.x, point.y)
+                if point_coords not in point_to_vertex:
+                    vertex_id = len(point_to_vertex)
+                    point_to_vertex[point_coords] = vertex_id
+                    graph.add_node(vertex_id, pos=(point.x, point.y), is_settlement=False, name=None)
     elif isinstance(line, LineString):
-        unique_points.add(Point(line.coords[0]))
-        unique_points.add(Point(line.coords[-1]))
+        start_point = Point(line.coords[0])
+        end_point = Point(line.coords[-1])
+        for point in [start_point, end_point]:
+            point_coords = (point.x, point.y)
+            if point_coords not in point_to_vertex:
+                vertex_id = len(point_to_vertex)
+                point_to_vertex[point_coords] = vertex_id
+                graph.add_node(vertex_id, pos=(point.x, point.y), is_settlement=False, name=None)
 
-# Přidání vrcholů do grafu
-point_to_vertex = {point: i for i, point in enumerate(unique_points)}
-for point in unique_points:
-    graph.add_node(point_to_vertex[point], pos=(point.x, point.y),
-                   is_settlement=settlements_info.get((point.x, point.y), False))
-
-# Přidání nákladů
+# Update edges to use labeled vertices
 for _, road in roads.iterrows():
     if isinstance(road.geometry, MultiLineString):
         for sub_line in road.geometry.geoms:
-            start_point = Point(sub_line.coords[0])  # První bod sub-linie
-            end_point = Point(sub_line.coords[-1])  # Poslední bod sub-linie
-            length = sub_line.length  # Délka sub-linie
+            start_point = Point(sub_line.coords[0])
+            end_point = Point(sub_line.coords[-1])
+            length = sub_line.length
+            crookedness = calculate_crookedness(sub_line)
             road_class = road["TRIDA"]
-            speed = rychlostni_mapa.get(road_class, 50)  # Výchozí rychlost, pokud není uvedena
-            cost = length / speed
+            speed = rychlostni_mapa.get(road_class, 50)
+            cost = (length * crookedness) / speed
             graph.add_edge(
-                point_to_vertex[start_point],
-                point_to_vertex[end_point],
+                point_to_vertex[(start_point.x, start_point.y)],
+                point_to_vertex[(end_point.x, end_point.y)],
                 weight=cost,
-                length=length
+                length=length,
+                crookedness=crookedness
             )
+            # Print edge information
+            print(f"Edge added: Start=({start_point.x}, {start_point.y}), "
+                  f"End=({end_point.x}, {end_point.y}), "
+                  f"Length={length:.2f}, Crookedness={crookedness:.2f}, "
+                  f"Speed={speed}, Weight={cost:.2f}")
     elif isinstance(road.geometry, LineString):
         start_point = Point(road.geometry.coords[0])
         end_point = Point(road.geometry.coords[-1])
         length = road.geometry.length
+        crookedness = calculate_crookedness(road.geometry)
         road_class = road["TRIDA"]
         speed = rychlostni_mapa.get(road_class, 50)
-        cost = length / speed
+        cost = (length * crookedness) / speed
         graph.add_edge(
-            point_to_vertex[start_point],
-            point_to_vertex[end_point],
+            point_to_vertex[(start_point.x, start_point.y)],
+            point_to_vertex[(end_point.x, end_point.y)],
             weight=cost,
-            length=length
+            length=length,
+            crookedness=crookedness
         )
+        # Print edge information
+        print(f"Edge added: Start=({start_point.x}, {start_point.y}), "
+              f"End=({end_point.x}, {end_point.y}), "
+              f"Length={length:.2f}, Crookedness={crookedness:.2f}, "
+              f"Speed={speed}, Weight={cost:.2f}")
     else:
-        raise TypeError(f"Neočekávaný typ geometrie: {type(road.geometry)}")
+        raise TypeError(f"Unsupported geometry type: {type(road.geometry)}")
 
 
-# Výstup (okres MB)
-print(f"Počet vrcholů: {graph.number_of_nodes()}")
-print(f"Počet hran: {graph.number_of_edges()}")
-
-# Uložení grafu
+# Save the updated graph
 with open("graph.pkl", "wb") as f:
     pickle.dump(graph, f)
+
+print("All vertices:")
+for node, data in graph.nodes(data=True):
+    print(f"Vertex {node}: {data}")
