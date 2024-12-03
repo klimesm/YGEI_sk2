@@ -66,10 +66,10 @@ def kruskal(graph):
 
 
 # Convert graph to adjacency list
-def graph_to_adj_list(graph):
+def graph_to_adj_list(graph, use_length_as_weight=False):
     adj_list = {}
     for u, v, data in graph.edges(data=True):
-        weight = data.get('weight', 1)
+        weight = data['length'] if use_length_as_weight else data.get('weight', 1)
         if u not in adj_list:
             adj_list[u] = []
         if v not in adj_list:
@@ -196,7 +196,8 @@ def has_negative_weights(graph):
 
 if __name__ == '__main__':
     # Pipeline
-    adj_list = graph_to_adj_list(graph)
+    use_length = False
+    adj_list = graph_to_adj_list(graph, use_length_as_weight=use_length)
     # Mapování indexů na skutečné uzly
     index_to_node = {i: node for i, node in enumerate(adj_list.keys())}
     node_to_index = {node: i for i, node in index_to_node.items()}
