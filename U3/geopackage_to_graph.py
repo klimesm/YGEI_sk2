@@ -93,6 +93,18 @@ def calculate_crookedness(line):
     return length / euclidean_distance if euclidean_distance > 0 else 1  # Avoid division by zero
 
 
+def make_unique_name(name, existing_names):
+    """
+    Přidá číslování k názvu, aby byl jedinečný.
+    """
+    original_name = name
+    counter = 1
+    while name in existing_names:
+        name = f"{original_name}_{counter}"
+        counter += 1
+    return name
+
+
 # Zpracování grafu
 graph = nx.Graph()
 settlements_info = {}
@@ -100,6 +112,7 @@ settlements_info = {}
 point_to_vertex = {}
 vertex_to_name = {}  # Map vertices to their names (if applicable)
 
+existing_names = set(vertex_to_name.values())
 for _, settlement in settlements.iterrows():
     settlement_point = settlement.geometry
     nearest_point, nearest_line = find_nearest_point_on_line(settlement_point, roads.geometry)
@@ -107,6 +120,8 @@ for _, settlement in settlements.iterrows():
     # Add the settlement point to the graph with its name
     if nearest_point:
         name = settlement["NAZEV"]
+        name = make_unique_name(name, existing_names)
+        existing_names.add(name)
         point = (nearest_point.x, nearest_point.y)
         if point not in point_to_vertex:
             vertex_id = len(point_to_vertex)
