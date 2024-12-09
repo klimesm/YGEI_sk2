@@ -12,6 +12,7 @@ print(f"Počet hran: {graph.number_of_edges()}")
 name_to_vertex = {data['name']: node for node, data in graph.nodes(data=True) if data.get('is_settlement')}
 vertex_to_name = {node: data['name'] for node, data in graph.nodes(data=True) if data.get('is_settlement')}
 
+
 print("Name-to-Vertex Map:", name_to_vertex)
 
 class UnionFind:
@@ -194,9 +195,65 @@ def has_negative_weights(graph):
     return False
 
 
+import matplotlib.pyplot as plt
+import networkx as nx
+
+
+def visualize_graph(graph, highlight=None, path=None, mst=None, floyd_paths=None, title="Graph Visualization"):
+    """
+    Visualizes the graph and highlights specific features (shortest path, minimum spanning tree, or other elements).
+
+    Parameters:
+    - graph: NetworkX graph to be visualized
+    - highlight: List of nodes to highlight
+    - path: List of nodes representing the shortest path (highlighted in red)
+    - mst: List of edges in the minimum spanning tree (highlighted in green)
+    - floyd_paths: List of edges across all shortest paths (e.g., from Floyd-Warshall algorithm) highlighted in purple
+    - title: Title of the graph visualization
+    """
+    # Retrieve node positions if defined in the graph
+    pos = nx.get_node_attributes(graph, 'pos')
+    if not pos:  # If positions are not specified, generate them automatically
+        pos = nx.spring_layout(graph)
+
+    # Get node labels (names of settlements or other attributes)
+    labels = nx.get_node_attributes(graph, 'name')
+
+    # Initialize the plot
+    plt.figure(figsize=(12, 12))
+    nx.draw(graph, pos, with_labels=False, node_size=50, node_color='blue', edge_color='gray')
+
+    # Highlight the shortest path (if provided)
+    if path:
+        path_edges = [(path[i], path[i + 1]) for i in range(len(path) - 1)]
+        nx.draw_networkx_edges(graph, pos, edgelist=path_edges, edge_color='red', width=2)
+        nx.draw_networkx_nodes(graph, pos, nodelist=path, node_color='black', node_size=100)
+
+    # Highlight the minimum spanning tree (if provided)
+    if mst:
+        nx.draw_networkx_edges(graph, pos, edgelist=mst, edge_color='green', width=2)
+
+    # Highlight all shortest paths (if provided, e.g., from Floyd-Warshall algorithm)
+    if floyd_paths:
+        nx.draw_networkx_edges(graph, pos, edgelist=floyd_paths, edge_color='purple', width=2)
+
+    # Highlight specific nodes (if provided)
+    if highlight:
+        nx.draw_networkx_nodes(graph, pos, nodelist=highlight, node_color='yellow', node_size=150)
+
+    # Add labels to the nodes
+    for node, (x, y) in pos.items():
+        if node in labels and labels[node] is not None:
+            plt.text(x, y, labels[node], fontsize=8, color='black', bbox=dict(facecolor='white', edgecolor='none'))
+
+    # Set the title and display the plot
+    plt.title(title)
+    plt.show()
+
+
 if __name__ == '__main__':
     # Pipeline
-    use_length = False
+    use_length = True
     adj_list = graph_to_adj_list(graph, use_length_as_weight=use_length)
     # Mapování indexů na skutečné uzly
     index_to_node = {i: node for i, node in enumerate(adj_list.keys())}
@@ -205,7 +262,7 @@ if __name__ == '__main__':
     # Úloha 1+2: Najít nejkratší cestu
     print("\nÚloha 1+2 - Hledání nejkratší cesty")
     start_node = "Březno"  # Settlement name
-    end_node = "Mladá Boleslav"  # Settlement name
+    end_node = "Doubrava"  # Settlement name
 
     if has_negative_weights(graph):
         print("Použit Bellman-Ford (záporné váhy detekovány)")
@@ -217,3 +274,5 @@ if __name__ == '__main__':
     # Map path back to names
     path_names = [vertex_to_name.get(node, f"Node {node}") for node in path]
     print(f"Nejkratší cesta mezi '{start_node}' a '{end_node}': {path_names} s délkou {length}")
+    title = f"Nejkratší cesta mezi '{start_node}' a '{end_node}', délka {length}"
+visualize_graph(graph,highlight=path,path=path,title=title)
