@@ -5,8 +5,8 @@ import pandas as pd
 import pickle
 
 # Načtení dat z GeoPackage
-silnice_file = "shapefiles/silnice_gp.gpkg"
-sidla_file = "shapefiles/sidla_gp.gpkg"
+silnice_file = "silnice_gp.gpkg"
+sidla_file = "sidla_gp.gpkg"
 
 # Načtení silnic
 roads = gpd.read_file(silnice_file)
