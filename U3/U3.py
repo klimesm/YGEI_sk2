@@ -1,5 +1,6 @@
 import pickle
 import heapq
+import networkx as nx
 
 # Load the graph
 with open("graph.pkl", "rb") as f:
@@ -14,6 +15,14 @@ vertex_to_name = {node: data['name'] for node, data in graph.nodes(data=True) if
 
 
 print("Name-to-Vertex Map:", name_to_vertex)
+
+# Extract the vertex-to-name mapping directly from node attributes
+vertex_to_name = {node: name for node, name in nx.get_node_attributes(graph, 'name').items() if name is not None}
+
+# Print to verify the mapping
+print("Vertex-to-Name Mapping:")
+for vertex, name in vertex_to_name.items():
+    print(f"Vertex {vertex}: {name}")
 
 class UnionFind:
     def __init__(self, nodes):
@@ -40,11 +49,25 @@ class UnionFind:
 
 # Resolve node index from name or index
 def resolve_node(node):
-    if isinstance(node, str):  # If it's a name, map it to the corresponding vertex index
+    """
+    Resolves a node name to its vertex index or returns the node directly if it is already an index.
+
+    Parameters:
+    - node: str (name) or int (vertex index)
+
+    Returns:
+    - int: vertex index
+    """
+    if isinstance(node, str):  # Node is a settlement name
+        # Reverse vertex-to-name to create name-to-vertex on demand
+        name_to_vertex = {name: vertex for vertex, name in vertex_to_name.items() if name}
+
         if node in name_to_vertex:
-            return index_to_node[name_to_vertex[node]]
-        raise ValueError(f"Settlement '{node}' not found in the graph.")
-    return node  # Already an index
+            return name_to_vertex[node]  # Correctly resolve the vertex index
+        else:
+            raise ValueError(f"Settlement '{node}' not found in the graph.")
+    return node  # Return the node directly if it's already an integer
+
 
 
 # Kruskal algorithm
@@ -68,13 +91,16 @@ def kruskal(graph):
 
 # Convert graph to adjacency list
 def graph_to_adj_list(graph, use_length_as_weight=False):
-    adj_list = {node: [] for node in graph.nodes()}  # Include all nodes first
+    adj_list = {}
     for u, v, data in graph.edges(data=True):
         weight = data['length'] if use_length_as_weight else data.get('weight', 1)
+        if u not in adj_list:
+            adj_list[u] = []
+        if v not in adj_list:
+            adj_list[v] = []
         adj_list[u].append((v, weight))
         adj_list[v].append((u, weight))
     return adj_list
-
 
 
 # Dijkstra algorithm
@@ -258,8 +284,8 @@ if __name__ == '__main__':
 
     # Úloha 1+2: Najít nejkratší cestu
     print("\nÚloha 1+2 - Hledání nejkratší cesty")
-    start_node = "Březno"  # Settlement name
-    end_node = "Písková Lhota"  # Settlement name
+    start_node = resolve_node("Březno")  # Settlement name
+    end_node = resolve_node("Doubrava")  # Settlement name
 
     if has_negative_weights(graph):
         print("Použit Bellman-Ford (záporné váhy detekovány)")
@@ -272,11 +298,5 @@ if __name__ == '__main__':
     path_names = [vertex_to_name.get(node, f"Node {node}") for node in path]
     print(f"Nejkratší cesta mezi '{start_node}' a '{end_node}': {path_names} s délkou {length}")
     title = f"Nejkratší cesta mezi '{start_node}' a '{end_node}', délka {length}"
-
-    print("Edges with Weights and Lengths:")
-    for u, v, data in graph.edges(data=True):
-        weight = data.get('weight', 'N/A')  # Default to 'N/A' if weight is missing
-        length = data.get('length', 'N/A')  # Default to 'N/A' if length is missing
-        print(f"Edge: {u} - {v}, Weight: {weight}, Length: {length}")
 
 visualize_graph(graph,highlight=path,path=path,title=title)
