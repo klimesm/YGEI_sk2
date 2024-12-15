@@ -1,7 +1,5 @@
 import pickle
 import heapq
-import matplotlib.pyplot as plt
-import networkx as nx
 
 # Load the graph
 with open("graph.pkl", "rb") as f:
@@ -9,26 +7,10 @@ with open("graph.pkl", "rb") as f:
 
 print(f"Počet vrcholů: {graph.number_of_nodes()}")
 print(f"Počet hran: {graph.number_of_edges()}")
-# # Zobrazte všechny uzly a jejich atributy
-# print("Uzly a jejich atributy:")
-# for node, data in graph.nodes(data=True):
-#     print(f"Uzel {node}: {data}")
 
-# # Create mappings for names and vertex indices
-# name_to_vertex = {data['name']: node for node, data in graph.nodes(data=True) if data.get('is_settlement')}
-# vertex_to_name = {node: data['name'] for node, data in graph.nodes(data=True) if data.get('is_settlement')}
-# Ensure all settlements have unique and valid names
-name_to_vertex = {}
-vertex_to_name = {}
-
-for node, data in graph.nodes(data=True):
-    # Ensure the node represents a settlement and has a name
-    if data.get('is_settlement') and 'name' in data:
-        name = data['name']
-        if name in name_to_vertex:
-            print(f"Warning: Duplicate name detected: {name}")
-        name_to_vertex[name] = node
-        vertex_to_name[node] = name
+# Create mappings for names and vertex indices
+name_to_vertex = {data['name']: node for node, data in graph.nodes(data=True) if data.get('is_settlement')}
+vertex_to_name = {node: data['name'] for node, data in graph.nodes(data=True) if data.get('is_settlement')}
 
 
 print("Name-to-Vertex Map:", name_to_vertex)
@@ -85,36 +67,14 @@ def kruskal(graph):
 
 
 # Convert graph to adjacency list
-# def graph_to_adj_list(graph, use_length_as_weight=False):
-#     adj_list = {}
-#     for u, v, data in graph.edges(data=True):
-#         weight = data['length'] if use_length_as_weight else data.get('weight', 1)
-#         if u not in adj_list:
-#             adj_list[u] = []
-#         if v not in adj_list:
-#             adj_list[v] = []
-#         adj_list[u].append((v, weight))
-#         adj_list[v].append((u, weight))
-#     return adj_list
 def graph_to_adj_list(graph, use_length_as_weight=False):
-    adj_list = {}
-
+    adj_list = {node: [] for node in graph.nodes()}  # Include all nodes first
     for u, v, data in graph.edges(data=True):
         weight = data['length'] if use_length_as_weight else data.get('weight', 1)
-
-        if u not in adj_list:
-            adj_list[u] = []
-        if v not in adj_list:
-            adj_list[v] = []
-
         adj_list[u].append((v, weight))
         adj_list[v].append((u, weight))
-
-    for node in graph.nodes:
-        if node not in adj_list:
-            adj_list[node] = []
-
     return adj_list
+
 
 
 # Dijkstra algorithm
@@ -231,6 +191,11 @@ def has_negative_weights(graph):
             return True
     return False
 
+
+import matplotlib.pyplot as plt
+import networkx as nx
+
+
 def visualize_graph(graph, highlight=None, path=None, mst=None, floyd_paths=None, title="Graph Visualization"):
     """
     Visualizes the graph and highlights specific features (shortest path, minimum spanning tree, or other elements).
@@ -275,14 +240,8 @@ def visualize_graph(graph, highlight=None, path=None, mst=None, floyd_paths=None
 
     # Add labels to the nodes
     for node, (x, y) in pos.items():
-        # Combine name and node identifier if name exists
         if node in labels and labels[node] is not None:
-            plt.text(x, y, f"{labels[node]} ({node})", fontsize=8, color='black',
-                     bbox=dict(facecolor='white', edgecolor='none'))
-        # else:
-        #     # Show only the numeric identifier if name is not present
-        #     plt.text(x, y, f"{node}", fontsize=8, color='blue',
-        #              bbox=dict(facecolor='white', edgecolor='none'))
+            plt.text(x, y, labels[node], fontsize=8, color='black', bbox=dict(facecolor='white', edgecolor='none'))
 
     # Set the title and display the plot
     plt.title(title)
@@ -293,7 +252,6 @@ if __name__ == '__main__':
     # Pipeline
     use_length = True
     adj_list = graph_to_adj_list(graph, use_length_as_weight=use_length)
-
     # Mapování indexů na skutečné uzly
     index_to_node = {i: node for i, node in enumerate(adj_list.keys())}
     node_to_index = {node: i for i, node in index_to_node.items()}
@@ -301,7 +259,7 @@ if __name__ == '__main__':
     # Úloha 1+2: Najít nejkratší cestu
     print("\nÚloha 1+2 - Hledání nejkratší cesty")
     start_node = "Březno"  # Settlement name
-    end_node = "Doubrava"  # Settlement name
+    end_node = "Písková Lhota"  # Settlement name
 
     if has_negative_weights(graph):
         print("Použit Bellman-Ford (záporné váhy detekovány)")
@@ -313,28 +271,12 @@ if __name__ == '__main__':
     # Map path back to names
     path_names = [vertex_to_name.get(node, f"Node {node}") for node in path]
     print(f"Nejkratší cesta mezi '{start_node}' a '{end_node}': {path_names} s délkou {length}")
-
     title = f"Nejkratší cesta mezi '{start_node}' a '{end_node}', délka {length}"
-visualize_graph(graph,highlight=path,path=path)
 
+    print("Edges with Weights and Lengths:")
+    for u, v, data in graph.edges(data=True):
+        weight = data.get('weight', 'N/A')  # Default to 'N/A' if weight is missing
+        length = data.get('length', 'N/A')  # Default to 'N/A' if length is missing
+        print(f"Edge: {u} - {v}, Weight: {weight}, Length: {length}")
 
-print("Nodes in graph:", list(graph.nodes))
-print("Nodes in adjacency list:", list(adj_list.keys()))
-print("Number of nodes in adjacency list:", len(list(adj_list.keys())))
-
-missing_in_adj_list = set(graph.nodes) - set(adj_list.keys())
-missing_in_graph = set(adj_list.keys()) - set(graph.nodes)
-
-print("Nodes in graph but not in adjacency list:", missing_in_adj_list)
-print("Nodes in adjacency list but not in graph:", missing_in_graph)
-# Vypsání index_to_node
-print("index_to_node:")
-for index, node in index_to_node.items():
-    print(f"Index {index}: Node {node}")
-
-# Vypsání node_to_index
-print("\nnode_to_index:")
-for node, index in node_to_index.items():
-    print(f"Node {node}: Index {index}")
-
-print("Adjacency list:", adj_list)
+visualize_graph(graph,highlight=path,path=path,title=title)
