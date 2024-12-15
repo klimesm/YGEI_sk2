@@ -226,12 +226,15 @@ for _, settlement in settlements.iterrows():
         start_vertex = coords[0]
         end_vertex = coords[-1]
 
-        # Connect settlement to the start or end point of the nearest line
+        # Safeguard: Ensure intermediary vertices are added only if meaningful
         nearest_vertex_coords = min([start_vertex, end_vertex], key=lambda p: Point(p).distance(settlement_point))
         if nearest_vertex_coords not in point_to_vertex:
-            vertex_to_name[len(point_to_vertex)] = None
-            point_to_vertex[nearest_vertex_coords] = len(point_to_vertex)
+            vertex_id = len(point_to_vertex)
+            point_to_vertex[nearest_vertex_coords] = vertex_id
+            vertex_to_name[vertex_id] = None  # No name for intermediary vertices
+            graph.add_node(vertex_id, pos=nearest_vertex_coords, is_settlement=False)  # Mark as non-settlement
 
+        # Add an edge between the settlement and the nearest line vertex
         graph.add_edge(
             point_to_vertex[settlement_coords],
             point_to_vertex[nearest_vertex_coords],
@@ -239,6 +242,7 @@ for _, settlement in settlements.iterrows():
             length=settlement_point.distance(Point(nearest_vertex_coords)),
             crookedness=1.0
         )
+
 
 # Add road vertices and edges
 for line in roads.geometry:
