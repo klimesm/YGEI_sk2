@@ -6,8 +6,8 @@ import networkx as nx
 with open("graph.pkl", "rb") as f:
     graph = pickle.load(f)
 
-print(f"Počet vrcholů: {graph.number_of_nodes()}")
-print(f"Počet hran: {graph.number_of_edges()}")
+print(f"Number of nodes: {graph.number_of_nodes()}")
+print(f"Number of edges: {graph.number_of_edges()}")
 
 # Create mappings for names and vertex indices
 name_to_vertex = {data['name']: node for node, data in graph.nodes(data=True) if data.get('is_settlement')}
@@ -282,21 +282,35 @@ if __name__ == '__main__':
     index_to_node = {i: node for i, node in enumerate(adj_list.keys())}
     node_to_index = {node: i for i, node in index_to_node.items()}
 
-    # Úloha 1+2: Najít nejkratší cestu
-    print("\nÚloha 1+2 - Hledání nejkratší cesty")
-    start_node = resolve_node("Březno")  # Settlement name
-    end_node = resolve_node("Doubrava")  # Settlement name
+    # Shortest path
+    print("\nFind shortest path")
+    start_node = resolve_node("Bezno")  # Starting Settlement name
+    end_node = resolve_node("Kněžmost")  # End Settlement name
+
+
 
     if has_negative_weights(graph):
-        print("Použit Bellman-Ford (záporné váhy detekovány)")
+        print("Negative weights detected - Bellman-Ford used")
         path, length = bellman_ford(adj_list, start_node, end_node)
     else:
-        print("Použit Dijkstra")
+        print("Dijkstra used")
         path, length = dijkstra(adj_list, start_node, end_node)
 
     # Map path back to names
     path_names = [vertex_to_name.get(node, f"Node {node}") for node in path]
-    print(f"Nejkratší cesta mezi '{start_node}' a '{end_node}': {path_names} s délkou {length}")
-    title = f"Nejkratší cesta mezi '{start_node}' a '{end_node}', délka {length}"
+   # print(f"Nejkratší cesta mezi '{start_node}' a '{end_node}': {path_names} s délkou {int(length)} m")
+    if use_length:
+        print(f"Shortest path between '{path_names[0]}' and '{path_names[-1]}': {path_names}")
+        print(f", length: {round(length/1000,2)} km")
+    else:
+        print(f"Quickest path between '{path_names[0]}' and '{path_names[-1]}': {path_names}")
+        print(f"Transportation time: {int(length/60)} min")
+visualize_graph(graph,highlight=path,path=path)
 
-visualize_graph(graph,highlight=path,path=path,title=title)
+# Compute and visualize MST
+# according to kruskal
+mst_k = kruskal(graph)
+visualize_graph(graph,mst=mst_k)
+# according to Prim
+mst_p = prim(graph)
+visualize_graph(graph,mst=mst_p)
